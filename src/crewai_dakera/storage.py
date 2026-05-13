@@ -1,7 +1,9 @@
 """DakeraStorage — CrewAI storage backed by the Dakera AI memory platform."""
 
 from __future__ import annotations
+
 from typing import Any
+
 from dakera import DakeraClient
 
 
@@ -24,7 +26,7 @@ class DakeraStorage:
         k = limit if limit is not None else self._search_k
         min_imp = self._min_importance if self._min_importance > 0.0 else None
         memories = self._client.recall(self._agent_id, query=query, top_k=k, min_importance=min_imp)
-        return [m if isinstance(m, dict) else {"content": str(m)} for m in memories]
+        return [{"content": m.content, "id": m.id, "score": m.score} for m in memories.memories]
 
     def reset(self) -> None:
         """No-op: Dakera memories are persistent by design."""
