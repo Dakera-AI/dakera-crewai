@@ -208,7 +208,7 @@ storage = DakeraStorage(
 
 - [Dakera Server](https://github.com/Dakera-AI/dakera-deploy) — self-hosted memory server
 - [Dakera Python SDK](https://github.com/Dakera-AI/dakera-py) — low-level API client
-- [Documentation](https://docs.dakera.ai/integrations/crewai)
+- [Documentation](https://dakera.ai/integrations/crewai)
 - [All integrations](https://github.com/Dakera-AI/dakera-integrations)
 
 ---
