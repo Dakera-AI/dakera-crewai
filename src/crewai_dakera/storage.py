@@ -66,8 +66,10 @@ class DakeraStorage:
     ) -> list[dict[str, Any]]:
         """Semantic search with optional tag and type filtering."""
         k = limit if limit is not None else self._search_k
-        min_imp = min_importance if min_importance is not None else (
-            self._min_importance if self._min_importance > 0.0 else None
+        min_imp = (
+            min_importance
+            if min_importance is not None
+            else (self._min_importance if self._min_importance > 0.0 else None)
         )
         kwargs: dict[str, Any] = {"top_k": k}
         if min_imp:
@@ -91,15 +93,12 @@ class DakeraStorage:
     ) -> list[dict[str, Any]]:
         """Combined vector + BM25 search."""
         k = limit if limit is not None else self._search_k
-        result = self._client.search_memories(
-            self._agent_id, query=query, top_k=k, alpha=alpha
-        )
-        return [
-            {"content": m.content, "id": m.id, "score": m.score}
-            for m in result.memories
-        ]
+        result = self._client.search_memories(self._agent_id, query=query, top_k=k, alpha=alpha)
+        return [{"content": m.content, "id": m.id, "score": m.score} for m in result.memories]
 
-    def batch_search(self, queries: list[str], limit: int | None = None) -> list[list[dict[str, Any]]]:
+    def batch_search(
+        self, queries: list[str], limit: int | None = None
+    ) -> list[list[dict[str, Any]]]:
         """Run multiple searches in batch."""
         k = limit if limit is not None else self._search_k
         results = []
