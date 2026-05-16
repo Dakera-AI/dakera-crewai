@@ -5,6 +5,7 @@
 [![Downloads](https://img.shields.io/pypi/dm/crewai-dakera)](https://pypi.org/project/crewai-dakera/)
 [![Python](https://img.shields.io/pypi/pyversions/crewai-dakera)](https://pypi.org/project/crewai-dakera/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![dakera.ai](https://img.shields.io/badge/dakera.ai-website-22c55e?style=flat-square)](https://dakera.ai) [![Docs](https://img.shields.io/badge/docs-dakera.ai%2Fdocs-3b82f6?style=flat-square)](https://dakera.ai/docs)
 [![Docs](https://img.shields.io/badge/docs-dakera.ai-D4A843)](https://dakera.ai/docs)
 
 **Persistent, semantically-recalled memory for [CrewAI](https://crewai.com) agents, powered by [Dakera](https://github.com/Dakera-AI/dakera-deploy).**
@@ -218,3 +219,11 @@ storage = DakeraStorage(
 ## License
 
 MIT © [Dakera AI](https://dakera.ai)
+
+---
+
+<div align="center">
+
+**[dakera.ai](https://dakera.ai)** · [Documentation](https://dakera.ai/docs) · [Request Early Access](https://dakera.ai#cta)
+
+</div>
