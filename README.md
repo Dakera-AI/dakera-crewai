@@ -5,6 +5,7 @@
 [![Downloads](https://img.shields.io/pypi/dm/crewai-dakera)](https://pypi.org/project/crewai-dakera/)
 [![Python](https://img.shields.io/pypi/pyversions/crewai-dakera)](https://pypi.org/project/crewai-dakera/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-dakera.ai-D4A843)](https://dakera.ai/docs)
 
 **Persistent, semantically-recalled memory for [CrewAI](https://crewai.com) agents, powered by [Dakera](https://github.com/Dakera-AI/dakera-deploy).**
 
