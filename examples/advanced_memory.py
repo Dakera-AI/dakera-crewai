@@ -9,21 +9,21 @@ Usage:
 
 import os
 
-from crewai_dakera import DakeraCrewMemory
+from crewai_dakera import DakeraStorage
 
 api_url = os.environ.get("DAKERA_API_URL", "http://localhost:3300")
 api_key = os.environ.get("DAKERA_API_KEY", "")
 
-memory = DakeraCrewMemory(
+memory = DakeraStorage(
     api_url=api_url,
     api_key=api_key,
     agent_id="crewai-advanced-demo",
 )
 
 print("--- Different importance levels ---")
-memory.store("casual greeting", importance=0.3)
-memory.store("user is allergic to peanuts", importance=0.95)
-memory.store("birthday is March 15", importance=0.8, tags=["personal"])
+memory.save("casual greeting", importance=0.3)
+memory.save("user is allergic to peanuts", importance=0.95)
+memory.save("birthday is March 15", importance=0.8, tags=["personal"])
 
 print("--- High-importance recall ---")
 results = memory.search("important facts", min_importance=0.7)
