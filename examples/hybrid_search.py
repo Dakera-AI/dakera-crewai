@@ -31,11 +31,11 @@ for doc in documents:
     store.save(doc)
 
 print("\n--- Vector search ---")
-results = store.search("memory safe language", top_k=3)
+results = store.search("memory safe language", limit=3)
 for r in results:
     print(f"  [{r['score']:.3f}] {r['content'][:60]}")
 
 print("\n--- Hybrid search ---")
-results = store.hybrid_search("Python web", top_k=3)
+results = store.hybrid_search("Python web", limit=3)
 for r in results:
     print(f"  [{r['score']:.3f}] {r['content'][:60]}")
