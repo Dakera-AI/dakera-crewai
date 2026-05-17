@@ -7,16 +7,15 @@ Usage:
 
 import os
 
-from crewai_dakera.storage import DakeraCrewStorage
+from crewai_dakera import DakeraStorage
 
 api_url = os.environ.get("DAKERA_API_URL", "http://localhost:3300")
 api_key = os.environ.get("DAKERA_API_KEY", "")
 
-store = DakeraCrewStorage(
+store = DakeraStorage(
     api_url=api_url,
     api_key=api_key,
     agent_id="crewai-hybrid-demo",
-    namespace="docs",
 )
 
 documents = [
@@ -28,7 +27,8 @@ documents = [
 ]
 
 print("Indexing documents...")
-store.add_texts(documents)
+for doc in documents:
+    store.save(doc)
 
 print("\n--- Vector search ---")
 results = store.search("memory safe language", top_k=3)
@@ -36,6 +36,6 @@ for r in results:
     print(f"  [{r['score']:.3f}] {r['content'][:60]}")
 
 print("\n--- Hybrid search ---")
-results = store.hybrid_search("Python web", top_k=3, alpha=0.5)
+results = store.hybrid_search("Python web", top_k=3)
 for r in results:
     print(f"  [{r['score']:.3f}] {r['content'][:60]}")
