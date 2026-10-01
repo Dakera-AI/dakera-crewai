@@ -1,8 +1,9 @@
 """Tests for DakeraStorage (CrewAI integration)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, create_autospec, patch
 
 import pytest
+from dakera import DakeraClient
 
 from crewai_dakera import DakeraStorage
 
@@ -10,7 +11,7 @@ from crewai_dakera import DakeraStorage
 @pytest.fixture
 def storage():
     with patch("crewai_dakera.storage.DakeraClient") as MockClient:
-        mock_client = MagicMock()
+        mock_client = create_autospec(DakeraClient, instance=True)
         MockClient.return_value = mock_client
         s = DakeraStorage(api_url="http://localhost:3000", api_key="test-key",
                           agent_id="crew-1", search_k=3)
