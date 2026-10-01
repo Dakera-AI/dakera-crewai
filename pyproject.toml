@@ -23,7 +23,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 keywords = ["crewai", "dakera", "memory", "ai", "agents"]
-dependencies = ["dakera>=0.13.0"]
+dependencies = ["dakera>=0.13.1"]
 
 [project.optional-dependencies]
 crewai = ["crewai>=0.30.0"]

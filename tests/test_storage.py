@@ -55,3 +55,14 @@ def test_reset_is_noop(storage):
     s, mock_client = storage
     s.reset()
     mock_client.forget.assert_not_called()
+
+
+def test_search_forwards_tags(storage):
+    # recall() takes tags since dakera 0.13.1 (it raised TypeError before).
+    from dakera.models import RecallResponse
+
+    obj, mock_client = storage
+    mock_client.recall.return_value = RecallResponse.from_dict({"memories": []})
+    assert obj.search("q", tags=["work"]) == []
+    _, kwargs = mock_client.recall.call_args
+    assert kwargs["tags"] == ["work"]
