@@ -33,8 +33,9 @@ def agent_id() -> str:
 
 def test_storage_round_trip(agent_id: str) -> None:
     storage = DakeraStorage(API_URL, agent_id, api_key=API_KEY, search_k=2)
-    # An agent that has stored nothing recalls nothing (no 404 from v0.12.3).
-    assert storage.search("anything") == []
+    # An agent that has stored nothing recalls nothing; "What do I build?" is a query a
+    # server before v0.12.3 answers with 404 NAMESPACE_NOT_FOUND.
+    assert storage.search("What do I build?") == []
 
     stored = [
         storage.save("Project Falcon ships on April 15", tags=["project"]),

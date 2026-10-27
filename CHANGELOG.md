@@ -50,6 +50,11 @@ them). The `crewai` extra targets CrewAI 0.193 – 1.9 (tested with 0.193.0, 1.6
 - `LICENSE` (MIT, as declared in `pyproject.toml`).
 
 ### Fixed
+- `DakeraStorage.search()`, `batch_search()` and `hybrid_search()` on a server before v0.12.3:
+  the first recall of a new agent (a crew's first run) raised `NotFoundError`
+  (`404 NAMESPACE_NOT_FOUND`). Such a server answers a recall or search of an agent that has
+  stored nothing with a 404 for some queries (e.g. "What do I build?"); it is now treated as
+  no memories, like a v0.12.3 server. Other 404s are still raised.
 - The README's headline example passed `DakeraStorage` to `LongTermMemory(storage=...)`, whose
   storage interface (`save(task_description, ...)`, `load(...)`) `DakeraStorage` does not
   implement, so the crew failed when it saved or recalled long-term memory. The README now

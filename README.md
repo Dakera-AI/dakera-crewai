@@ -354,9 +354,11 @@ python examples/crew_memory.py
   `ExternalMemory(storage=...)` (or `ShortTermMemory` / `EntityMemory`).
 - **CrewAI 1.10 or later** — CrewAI 1.10 replaced these memories with a unified `Memory` that
   `DakeraStorage` does not plug into; use CrewAI < 1.10 (the `crewai` extra pins it).
-- **`dakera.NotFoundError` (404 `NAMESPACE_NOT_FOUND`) on a server before v0.12.3** — such a
-  server can answer a recall for an agent that has stored nothing with 404 (v0.12.3 answers an
-  empty list). Store a memory first, or upgrade the server.
+- **Nothing recalled for a new agent** — an agent that has stored nothing recalls nothing. A
+  server before v0.12.3 answers such a recall with 404 `NAMESPACE_NOT_FOUND` for some queries
+  (v0.12.3 answers an empty list); `DakeraStorage` (`search()`, `batch_search()`,
+  `hybrid_search()`, and so a crew's first run) treats it as no memories, so a new agent starts
+  the same way on every v0.12 server. Other 404s are raised.
 - **Fewer results than expected** — search returns at most `limit` ranked memories. A v0.12.3
   server can add a session's neighbouring memories after the ranked results; this package
   requests them separately and leaves them out. `score_threshold` from CrewAI is not applied.
