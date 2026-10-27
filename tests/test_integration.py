@@ -73,8 +73,12 @@ def test_sessions(agent_id: str) -> None:
         sid = sessions.active_session_id
         assert sid is not None
         assert sessions.touch()["session_state"] == "active"
-        stored = storage.save("User asked about password reset", session_id=sid)
+        stored = storage.save(
+            "User asked about password reset. The reset link had expired, so we sent a new one.",
+            session_id=sid,
+        )
         assert stored["session_state"] == "active"
+        # The server also lists the sentences it derives; memories() leaves them out.
         assert [m["id"] for m in sessions.memories(sid)] == [stored["id"]]
         assert sid in [s["id"] for s in sessions.list(active_only=True)]
     assert sessions.active_session_id is None
@@ -123,3 +127,68 @@ def test_namespaces() -> None:
         assert namespaces.stats(name)["dimensions"] == 8
     finally:
         namespaces.delete(name)
+
+
+def test_crewai_memories_use_the_storage(agent_id: str) -> None:
+    """CrewAI's ExternalMemory / ShortTermMemory call the storage interface (CrewAI < 1.10)."""
+    external = pytest.importorskip("crewai.memory.external.external_memory")
+    short_term = pytest.importorskip("crewai.memory.short_term.short_term_memory")
+
+    storage = DakeraStorage(API_URL, agent_id, api_key=API_KEY)
+    memory = external.ExternalMemory(storage=storage)
+    memory.save(
+        "The client wants weekly status reports",
+        {"description": "Collect requirements", "messages": [{"role": "user", "content": "x"}]},
+    )
+    short_term.ShortTermMemory(storage=storage).save("The launch is on May 3")
+
+    results = memory.search("How often does the client want reports?", limit=1)
+    assert [r["content"] for r in results] == ["The client wants weekly status reports"]
+    assert results[0]["metadata"] == {"description": "Collect requirements"}
+
+    storage.reset()
+    assert storage.search("reports") == []
+
+
+def test_crew_recalls_external_memory(agent_id: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A crew stores its answer in Dakera and recalls it in the next run (CrewAI < 1.10)."""
+    external = pytest.importorskip("crewai.memory.external.external_memory")
+    from crewai import Agent, Crew, Task
+    from crewai.llms.base_llm import BaseLLM
+
+    monkeypatch.setenv("CREWAI_TRACING_ENABLED", "false")
+    monkeypatch.setenv("CREWAI_DISABLE_TELEMETRY", "true")
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
+
+    class ScriptedLLM(BaseLLM):
+        def __init__(self, answers: list[str]) -> None:
+            super().__init__(model="scripted")
+            self.answers = answers
+            self.prompts: list[str] = []
+
+        def call(self, messages, *args, **kwargs):  # type: ignore[no-untyped-def]
+            self.prompts.append(str(messages))
+            return f"Thought: I know the answer.\nFinal Answer: {self.answers.pop(0)}"
+
+        def supports_function_calling(self) -> bool:
+            return False
+
+        def supports_stop_words(self) -> bool:
+            return False
+
+        def get_context_window_size(self) -> int:
+            return 8192
+
+    llm = ScriptedLLM(["Dakera keeps agent memory server-side.", "As found before."])
+    storage = DakeraStorage(API_URL, agent_id, api_key=API_KEY)
+    agent = Agent(role="Researcher", goal="Research {topic}", backstory="An expert.", llm=llm)
+    task = Task(description="Research {topic}", expected_output="One sentence", agent=agent)
+    for _ in range(2):
+        crew = Crew(
+            agents=[agent], tasks=[task], external_memory=external.ExternalMemory(storage=storage)
+        )
+        crew.kickoff(inputs={"topic": "AI memory"})
+
+    # The second run's prompt carries what the first run stored.
+    assert "Dakera keeps agent memory server-side." in llm.prompts[-1]
+    storage.reset()

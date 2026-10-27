@@ -5,12 +5,13 @@
 [![Downloads](https://img.shields.io/pypi/dm/crewai-dakera)](https://pypi.org/project/crewai-dakera/)
 [![Python](https://img.shields.io/pypi/pyversions/crewai-dakera)](https://pypi.org/project/crewai-dakera/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![dakera.ai](https://img.shields.io/badge/dakera.ai-website-22c55e?style=flat-square)](https://dakera.ai) [![Docs](https://img.shields.io/badge/docs-dakera.ai%2Fdocs-3b82f6?style=flat-square)](https://dakera.ai/docs)
-[![Docs](https://img.shields.io/badge/docs-dakera.ai-D4A843)](https://dakera.ai/docs)
+[![dakera.ai](https://img.shields.io/badge/dakera.ai-website-22c55e?style=flat-square)](https://dakera.ai)
+[![Docs](https://img.shields.io/badge/docs-dakera.ai%2Fdocs-3b82f6?style=flat-square)](https://dakera.ai/docs)
 
-**Persistent, semantically-recalled memory for [CrewAI](https://crewai.com) agents, powered by [Dakera](https://github.com/Dakera-AI/dakera-deploy).**
+**Persistent, semantically recalled memory for [CrewAI](https://crewai.com) crews, powered by [Dakera](https://dakera.ai).**
 
-Your CrewAI crews remember everything — across sessions, across restarts. Dakera handles embedding, storage, and retrieval server-side with no local model required.
+Your crews remember across runs, processes and restarts. Dakera embeds, stores and ranks
+memories server-side, so no embedding model or vector database runs in your process.
 
 ---
 
@@ -18,183 +19,268 @@ Your CrewAI crews remember everything — across sessions, across restarts. Dake
 
 ### Step 1 — Run Dakera
 
-Dakera is a self-hosted memory server. Spin it up with Docker:
+Dakera is a self-hosted memory server. Start it with Docker:
 
 ```bash
 docker run -d \
   --name dakera \
-  -p 3300:3300 \
+  -p 3000:3000 \
   -e DAKERA_ROOT_API_KEY=dk-mykey \
-  ghcr.io/dakera-ai/dakera:latest
+  ghcr.io/dakera-ai/dakera:0.12.3
+
+curl http://localhost:3000/health
 ```
 
-For a production setup with persistent storage, use Docker Compose:
+For persistent storage, use the Docker Compose setup:
 
 ```bash
-# Download and start
-curl -sSfL https://raw.githubusercontent.com/Dakera-AI/dakera-deploy/main/docker-compose.yml \
+curl -sSfL https://raw.githubusercontent.com/Dakera-AI/dakera-deploy/main/docker/docker-compose.yml \
   -o docker-compose.yml
-DAKERA_API_KEY=dk-mykey docker compose up -d
-
-# Verify it's running
-curl http://localhost:3300/health
+DAKERA_ROOT_API_KEY=dk-mykey docker compose up -d
 ```
 
-> Full deployment guide: [github.com/Dakera-AI/dakera-deploy](https://github.com/Dakera-AI/dakera-deploy)
+> Full deployment guide (Docker Compose, Kubernetes, Helm): [github.com/Dakera-AI/dakera-deploy](https://github.com/Dakera-AI/dakera-deploy)
 
 ### Step 2 — Install the integration
 
 ```bash
-pip install crewai-dakera
-```
-
-### Step 3 — Add memory to your crew
-
-```python
-from crewai import Crew, Agent, Task
-from crewai.memory import LongTermMemory
-from crewai_dakera import DakeraStorage
-
-storage = DakeraStorage(
-    api_url="http://localhost:3300",
-    api_key="dk-mykey",
-    agent_id="my-crew",
-)
-
-crew = Crew(
-    agents=[...],
-    tasks=[...],
-    memory=True,
-    long_term_memory=LongTermMemory(storage=storage),
-)
-
-result = crew.kickoff(inputs={"topic": "AI trends"})
-```
-
-Your crew now persists everything it learns across runs.
-
----
-
-## Installation
-
-```bash
-# Core + integration
-pip install crewai-dakera
-
-# With CrewAI (if not already installed)
 pip install "crewai-dakera[crewai]"
 ```
 
-**Requirements:** Python ≥ 3.10, a running Dakera server (see Step 1 above)
+### Step 3 — Give your crew a memory
 
-**Compatibility:** Tested against Dakera server v0.12.3; works with v0.12.0 – v0.12.2 (dakera Python SDK >= 0.14.1). `event_time` needs server v0.12.3; `DakeraSessionManager.touch()` and `idle_timeout_secs` need v0.12.2.
-
----
-
-## Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `api_url` | `str` | — | Dakera server URL (e.g. `http://localhost:3300`) |
-| `api_key` | `str` | `""` | API key set via `DAKERA_ROOT_API_KEY` |
-| `agent_id` | `str` | — | Logical identifier for this crew's memory |
-| `min_importance` | `float` | `0.0` | Minimum importance score for recalled memories |
-| `top_k` | `int` | `5` | Number of memories to surface per turn |
-
-Use environment variables to avoid hardcoding credentials:
+`DakeraStorage` implements CrewAI's memory storage interface. Pass it to CrewAI's
+`ExternalMemory`: after each task the crew stores the agent's answer in Dakera, and
+before each task it recalls the memories relevant to the task into the agent's prompt.
 
 ```python
-import os
+from crewai import Agent, Crew, Task
+from crewai.memory.external.external_memory import ExternalMemory
+
 from crewai_dakera import DakeraStorage
 
 storage = DakeraStorage(
-    api_url=os.environ["DAKERA_URL"],
-    api_key=os.environ["DAKERA_API_KEY"],
-    agent_id="research-crew",
-)
-```
-
----
-
-## Examples
-
-### Research crew with persistent memory
-
-```python
-from crewai import Agent, Task, Crew, Process
-from crewai.memory import LongTermMemory, ShortTermMemory, EntityMemory
-from crewai_dakera import DakeraStorage
-
-dakera = DakeraStorage(
-    api_url="http://localhost:3300",
+    api_url="http://localhost:3000",
     api_key="dk-mykey",
     agent_id="research-crew",
 )
 
 researcher = Agent(
     role="Senior Researcher",
-    goal="Uncover groundbreaking insights in {topic}",
-    backstory="An expert researcher with decades of experience.",
-    verbose=True,
+    goal="Uncover insights about {topic}",
+    backstory="An expert researcher who builds on earlier findings.",
 )
-
-writer = Agent(
-    role="Content Writer",
-    goal="Craft compelling reports based on research findings",
-    backstory="A skilled writer who turns complex ideas into clear prose.",
-    verbose=True,
-)
-
-research_task = Task(
-    description="Research the latest developments in {topic}",
-    expected_output="A detailed research report",
+task = Task(
+    description="Research {topic} and state the key finding in one sentence.",
+    expected_output="One sentence",
     agent=researcher,
 )
 
-write_task = Task(
-    description="Write a blog post based on the research",
-    expected_output="A polished 500-word article",
-    agent=writer,
-)
-
 crew = Crew(
-    agents=[researcher, writer],
-    tasks=[research_task, write_task],
-    process=Process.sequential,
-    memory=True,
-    long_term_memory=LongTermMemory(storage=dakera),
-    verbose=True,
+    agents=[researcher],
+    tasks=[task],
+    external_memory=ExternalMemory(storage=storage),
 )
 
-# First run — learns and stores findings
-result = crew.kickoff(inputs={"topic": "quantum computing"})
-print(result.raw)
-
-# Second run — recalls prior research automatically
-result = crew.kickoff(inputs={"topic": "quantum computing advances"})
-print(result.raw)
+crew.kickoff(inputs={"topic": "AI agent memory"})  # stores the finding
+crew.kickoff(inputs={"topic": "long-term memory for AI agents"})  # recalls it
 ```
 
-### Custom importance scoring
+A new crew, process or machine that uses the same `agent_id` recalls the same memories.
+[`examples/crew_memory.py`](examples/crew_memory.py) runs this crew, with or without a
+model API key.
+
+---
+
+## Installation
+
+```bash
+# DakeraStorage as the memory of a crew, plus the helpers
+pip install "crewai-dakera[crewai]"
+
+# Only the direct API (DakeraStorage, sessions, knowledge graph, ...), with any CrewAI
+pip install crewai-dakera
+```
+
+**Requirements:** Python ≥ 3.10, a running Dakera server (see Step 1).
+
+**Compatibility:**
+
+- Dakera: tested against server v0.12.3; works with v0.12.0 – v0.12.2 (dakera Python
+  SDK ≥ 0.14.1). `event_time` needs server v0.12.3; `DakeraSessionManager.touch()` and
+  `idle_timeout_secs` need v0.12.2.
+- CrewAI: the `crewai` extra installs CrewAI 0.193 – 1.9, whose `ExternalMemory`,
+  `ShortTermMemory` and `EntityMemory` take a `storage`. CrewAI 1.10 replaced them with a
+  unified `Memory` whose storage backends receive client-side embeddings; `DakeraStorage`
+  does not plug into it, though its direct API works with any CrewAI version.
+
+---
+
+## What's in the package
+
+| Class | Use it for |
+|-------|-----------|
+| `DakeraStorage` | The memory of a crew (`ExternalMemory(storage=...)`) and a direct API to an agent's memories |
+| `DakeraSessionManager` | Group memories into conversation sessions |
+| `DakeraKnowledgeGraph` | Link memories, query the graph, find paths, summarize, deduplicate |
+| `DakeraEntityExtractor` | Named-entity extraction and its per-agent configuration |
+| `DakeraNamespaceManager` | Create and configure Dakera namespaces |
+
+---
+
+## `DakeraStorage`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `api_url` | `str` | — | Dakera server URL, e.g. `http://localhost:3000` |
+| `agent_id` | `str` | — | The Dakera agent whose memories are read and written |
+| `api_key` | `str` | `""` | API key (the server's `DAKERA_ROOT_API_KEY` or a key created from it) |
+| `search_k` | `int` | `5` | Memories returned by `search()` when CrewAI or you pass no `limit` |
+| `min_importance` | `float` | `0.0` | Only recall memories at least this important (`0.0` = no filter) |
+| `importance` | `float` | `0.7` | Importance of saved memories |
+
+Read the URL and key from the environment rather than hard-coding them:
 
 ```python
+import os
+
+from crewai_dakera import DakeraStorage
+
 storage = DakeraStorage(
-    api_url="http://localhost:3300",
-    api_key="dk-mykey",
-    agent_id="my-crew",
-    min_importance=0.6,  # only surface high-quality memories
-    top_k=10,
+    api_url=os.environ.get("DAKERA_API_URL", "http://localhost:3000"),
+    api_key=os.environ.get("DAKERA_API_KEY", ""),
+    agent_id="research-crew",
 )
+```
+
+### As CrewAI storage
+
+CrewAI calls these methods; you rarely call them yourself:
+
+- **`save(value, metadata)`** / **`asave(...)`** stores `value` (as `str()` if it is not a
+  string) with `metadata`. The conversation that `ExternalMemory` attaches as
+  `metadata["messages"]` is left out: the value already holds the answer, and a long
+  conversation would exceed the server's metadata limit.
+- **`search(query, limit, score_threshold)`** / **`asearch(...)`** returns at most `limit`
+  memories, most relevant first, as dicts with `content`, `id`, `score` (the server's
+  ranking score), `importance` and `metadata`. `score_threshold` is a cut-off for the cosine
+  similarity of CrewAI's own stores; Dakera's ranking score is on another scale, so it is
+  not applied (use `min_importance`).
+- **`reset()`** deletes **every memory of the agent** on the server. CrewAI calls it from
+  `crew.reset_memories(...)` and `crewai reset-memories`; it cannot be undone.
+
+The same storage also backs `ShortTermMemory(storage=...)` and `EntityMemory(storage=...)`.
+`LongTermMemory` uses a different storage interface (`save(task_description, ...)` /
+`load(...)`) and is not supported.
+
+### Direct API
+
+```python
+from crewai_dakera import DakeraStorage
+
+storage = DakeraStorage(api_url="http://localhost:3000", api_key="dk-mykey", agent_id="my-crew")
+
+stored = storage.save(
+    "The client moved the launch to May 3",
+    {"project": "apollo"},
+    memory_type="semantic",  # episodic (default), semantic, procedural or working
+    importance=0.9,
+    tags=["launch"],
+    event_time="2026-03-01T09:00:00Z",  # when it happened (server v0.12.3+)
+)
+for r in storage.search("When is the launch?", tags=["launch"], min_importance=0.5):
+    print(f"[{r['score']:.3f}] {r['content']}")  # score: the server's ranking score
+
+storage.hybrid_search("launch May", limit=3)  # vector + BM25
+storage.batch_search(["launch", "budget"], limit=2)
+storage.update_importance(stored["id"], 0.95)
+
+a = storage.save("Likes tea")["id"]
+b = storage.save("Drinks green tea every morning")["id"]
+merged = storage.consolidate([a, b])  # merge into one memory
+storage.forget(stored["id"])
+storage.batch_forget([merged["consolidated_memory"]["id"]])
+print(storage.stats()["total_memories"])
+```
+
+`save()` also takes `ttl_seconds` (the memory expires) and `session_id` (see below).
+`search()` takes `limit`, `tags` (memories carrying at least one of them), `memory_type`
+and `min_importance`; it and `batch_search()` return at most `limit` ranked memories.
+
+## Sessions
+
+```python
+from crewai_dakera import DakeraSessionManager, DakeraStorage
+
+storage = DakeraStorage(api_url="http://localhost:3000", api_key="dk-mykey", agent_id="my-crew")
+sessions = DakeraSessionManager(
+    api_url="http://localhost:3000", api_key="dk-mykey", agent_id="my-crew"
+)
+
+with sessions:  # starts a session, ends it on exit
+    storage.save("User asked about password reset", session_id=sessions.active_session_id)
+    sessions.touch()  # record activity on a long-running session
+    print(sessions.memories(sessions.active_session_id))
+```
+
+The server ends a session after 4 h without activity by default (server v0.12.2+;
+`get()` then reports `ended_reason: "idle"`). `start(idle_timeout_secs=...)` sets a session's
+own timeout (`0` = never) and `touch()` keeps it open. `memories()` leaves out the sentence
+sub-memories the server derives from each memory (`include_derived=True` keeps them).
+
+## Knowledge graph, entities, namespaces
+
+```python
+from crewai_dakera import (
+    DakeraEntityExtractor,
+    DakeraKnowledgeGraph,
+    DakeraNamespaceManager,
+    DakeraStorage,
+)
+
+storage = DakeraStorage(api_url="http://localhost:3000", api_key="dk-mykey", agent_id="my-crew")
+kg = DakeraKnowledgeGraph(api_url="http://localhost:3000", api_key="dk-mykey", agent_id="my-crew")
+
+a = storage.save("Anna leads the platform team in Berlin")["id"]
+b = storage.save("The platform team ships every Friday")["id"]
+kg.link(a, b, label="team")
+print(kg.find_path(a, b)["hop_count"])
+print(kg.summarize([a, b])["summary_memory"]["content"])  # stores a summary memory
+print(kg.deduplicate(dry_run=True))  # report near-duplicate memories
+
+entities = DakeraEntityExtractor(
+    api_url="http://localhost:3000", api_key="dk-mykey", agent_id="my-crew"
+)
+entities.configure(["person", "location"])  # extraction for this agent's memories
+print(entities.extract("Anna lives in Berlin"))
+
+namespaces = DakeraNamespaceManager(api_url="http://localhost:3000", api_key="dk-mykey")
+namespaces.create("product-docs", dimensions=384)
+print(namespaces.get("product-docs"))
+namespaces.delete("product-docs")
 ```
 
 ---
 
-## How it works
+## Examples
 
-1. After each task, CrewAI calls `DakeraStorage.save()` with the result
-2. Dakera embeds the content server-side (no local model needed) and stores it with a semantic vector
-3. Before the next task, CrewAI calls `DakeraStorage.search()` — Dakera performs hybrid search (vector + BM25) and returns the most relevant past memories
-4. Memories decay gracefully over time based on access patterns — frequently-accessed memories stay prominent
+| Script | Shows |
+|--------|-------|
+| [`crew_memory.py`](examples/crew_memory.py) | A crew with `ExternalMemory(storage=DakeraStorage(...))` (runs without a model key) |
+| [`basic_memory.py`](examples/basic_memory.py) | Save and search with `DakeraStorage` |
+| [`advanced_memory.py`](examples/advanced_memory.py) | Importance, filtered recall, event time, consolidation |
+| [`batch_operations.py`](examples/batch_operations.py) | Batch search and forget |
+| [`hybrid_search.py`](examples/hybrid_search.py) | Semantic recall vs. vector + BM25 search |
+| [`knowledge_graph.py`](examples/knowledge_graph.py) | Links, graph queries, paths, summaries |
+| [`multi_agent.py`](examples/multi_agent.py) | Separate and shared memories of several agents |
+| [`sessions.py`](examples/sessions.py) | Sessions, idle timeout and `touch()` |
+
+```bash
+export DAKERA_API_URL=http://localhost:3000
+export DAKERA_API_KEY=dk-mykey
+pip install "crewai-dakera[crewai]"
+python examples/crew_memory.py
+```
 
 ---
 
@@ -202,19 +288,22 @@ storage = DakeraStorage(
 
 | Package | Framework | Language |
 |---------|-----------|----------|
-| `langchain-dakera` | LangChain | Python |
-| `llamaindex-dakera` | LlamaIndex | Python |
-| `autogen-dakera` | AutoGen | Python |
-| `@dakera-ai/langchain` | LangChain.js | TypeScript |
+| [`autogen-dakera`](https://github.com/Dakera-AI/dakera-autogen) | AutoGen | Python |
+| [`langchain-dakera`](https://github.com/Dakera-AI/dakera-langchain) | LangChain | Python |
+| [`llamaindex-dakera`](https://github.com/Dakera-AI/dakera-llamaindex) | LlamaIndex | Python |
+| [`strands-dakera`](https://github.com/Dakera-AI/strands-dakera) | Strands Agents | Python |
+| [`@dakera-ai/langchain`](https://github.com/Dakera-AI/dakera-langchain-js) | LangChain.js | TypeScript |
+| [`@dakera-ai/ai-sdk`](https://github.com/Dakera-AI/dakera-ai-sdk) | Vercel AI SDK | TypeScript |
 
 ---
 
 ## Links
 
-- [Dakera Server](https://github.com/Dakera-AI/dakera-deploy) — self-hosted memory server
-- [Dakera Python SDK](https://github.com/Dakera-AI/dakera-py) — low-level API client
+- [Dakera deployment](https://github.com/Dakera-AI/dakera-deploy) — self-hosting the memory server
+- [Dakera Python SDK](https://github.com/Dakera-AI/dakera-py) — the API client this package uses
 - [Integration guide](https://dakera.ai/integrations/crewai.html) — full setup walkthrough
 - [All integrations](https://dakera.ai/integrations/)
+- [Changelog](CHANGELOG.md)
 
 ---
 

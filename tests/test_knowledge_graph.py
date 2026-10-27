@@ -86,6 +86,7 @@ def test_link_without_label(kg):
         "mem_1", "mem_2", agent_id="test-agent", label=None
     )
 
+
 def test_export(kg):
     graph, mock_client = kg
     mock_edge = MagicMock()
@@ -131,6 +132,14 @@ def test_deduplicate(kg):
     graph, mock_client = kg
     mock_client.deduplicate.return_value = {"merged": 2}
     assert graph.deduplicate() == {"merged": 2}
+    mock_client.deduplicate.assert_called_once_with("test-agent", threshold=None, dry_run=False)
+
+
+def test_deduplicate_dry_run_with_threshold(kg):
+    graph, mock_client = kg
+    graph.deduplicate(threshold=0.95, dry_run=True)
+    mock_client.deduplicate.assert_called_once_with("test-agent", threshold=0.95, dry_run=True)
+
 
 def test_summarize_has_no_dry_run(kg):
     graph, _ = kg

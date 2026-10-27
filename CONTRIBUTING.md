@@ -29,55 +29,68 @@ Use the [Feature Request](https://github.com/Dakera-AI/dakera-crewai/issues/new?
 
 ## Development Setup
 
-**Prerequisites:** Python 3.8+, a running Dakera server (for integration tests)
+**Prerequisites:** Python 3.10+, Docker (for the live tests and examples)
 
 ```bash
-# Install in development mode
-pip install -e ".[dev]"
+# Install in development mode, with CrewAI and the test tools
+pip install -e ".[dev,crewai]"
 
-# Run tests (unit only — no server required)
+# Unit tests (no server needed; the live tests are skipped)
 pytest tests/ -v
 
-# Lint
+# Lint, format check, type check
 ruff check .
-
-# Type check
-mypy src/
-
-# Format check
 ruff format --check .
+mypy src/
 ```
 
 ## Code Style
 
-- **Formatter**: `ruff format` — all code must be formatted
+- **Formatter**: `ruff format` — all code must be formatted (CI checks it)
 - **Linter**: `ruff check .` — no lint errors
-- **Type checker**: `mypy src/` — all public APIs must be typed
-- **Tests**: `pytest` — all tests must pass; new features require tests
+- **Type checker**: `mypy src/` — all public APIs must be typed and documented
+- **Tests**: `pytest` — all tests must pass; new features need unit tests and, when they
+  call the server, a live test in `tests/test_integration.py`
 
 ## Testing Against a Live Dakera Server
 
-Some scenarios require a running Dakera instance. Start one locally with Docker:
+`tests/test_integration.py` runs every class against a real server, including a crew with
+`ExternalMemory(storage=DakeraStorage(...))` and a scripted LLM when CrewAI is installed. It is
+skipped unless `DAKERA_API_URL` is set. Start the server version CI uses:
 
 ```bash
-docker run -p 3300:3300 ghcr.io/dakera-ai/dakera:latest
+docker run -d --name dakera -p 3000:3000 -e DAKERA_AUTH_ENABLED=false \
+  ghcr.io/dakera-ai/dakera:0.12.3
+curl http://localhost:3000/health
+
+export DAKERA_API_URL=http://localhost:3000
+pytest tests/ -v                    # unit + live tests
+python examples/crew_memory.py      # each example runs against the same server
 ```
 
-Then set the server URL in your test environment:
+CrewAI asks whether to show execution traces after a kickoff; set
+`CREWAI_TRACING_ENABLED=false` (CI does) to run the crew test and `crew_memory.py`
+non-interactively.
 
-```bash
-export DAKERA_SERVER_URL=http://localhost:3300
-pytest tests/integration/ -v
-```
+With authentication enabled (`-e DAKERA_ROOT_API_KEY=dk-mykey` instead of
+`DAKERA_AUTH_ENABLED=false`), also export `DAKERA_API_KEY=dk-mykey`.
 
-For unit tests that do not require a live server, mock the `dakera` client:
+Unit tests mock the SDK client with `create_autospec`, so a call that does not match the
+`dakera` SDK's signature fails the test:
 
 ```python
-from unittest.mock import patch, MagicMock
+from unittest.mock import create_autospec, patch
 
-with patch("dakera_crewai.storage.Dakera") as mock_client:
-    mock_client.return_value.store.return_value = MagicMock(id="mem-123")
-    # test your logic
+from dakera import DakeraClient
+
+from crewai_dakera import DakeraStorage
+
+with patch("crewai_dakera.storage.DakeraClient") as MockClient:
+    client = create_autospec(DakeraClient, instance=True)
+    MockClient.return_value = client
+    storage = DakeraStorage(api_url="http://localhost:3000", agent_id="agent-1")
+    storage.save("Project deadline is April 15")
+    client.store_memory.assert_called_once()
 ```
 
 ## License
