@@ -58,8 +58,9 @@ them). The `crewai` extra targets CrewAI 0.193 – 1.9 (tested with 0.193.0, 1.6
 - A crew's `ExternalMemory` passes the agent's whole conversation as `metadata["messages"]`;
   stored as metadata it could exceed the server's metadata limit and fail the save. It is
   left out (the value already holds the agent's answer).
-- `DakeraNamespaceManager.create(..., metadata=...)` failed with `422` on a v0.12.3 server,
-  which refuses fields its create route does not know.
+- `DakeraNamespaceManager.create(..., metadata=...)` looked like it stored namespace metadata,
+  but the server's create route has no such field and dropped it; `metadata` is deprecated
+  (`DeprecationWarning`) and no longer sent.
 - `DakeraSessionManager.memories()` returned the sentence sub-memories the server derives from
   a session's memories (tagged `dakera-curated`) alongside them; they are left out unless
   `include_derived=True`.

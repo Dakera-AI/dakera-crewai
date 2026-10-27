@@ -33,9 +33,9 @@ class DakeraNamespaceManager:
     ) -> dict[str, Any]:
         """Create a namespace and return its details.
 
-        ``dimensions`` is required by the server. ``metadata`` is deprecated and not
-        sent: the server's create route has no metadata field and a v0.12.3 server
-        refuses the request with ``422``.
+        ``dimensions`` is required by the server (``422`` without it). ``metadata`` is
+        deprecated and not sent: the server's create route has no metadata field and
+        dropped it without storing it.
         """
         if metadata is not None:
             warnings.warn(
