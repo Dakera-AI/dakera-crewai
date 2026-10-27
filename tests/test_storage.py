@@ -27,28 +27,98 @@ def test_save_stores_memory(storage):
         memory_type="episodic", importance=0.7)
 
 
+def _recall(*memories, **extra):
+    from dakera.models import RecallResponse
+
+    return RecallResponse.from_dict({"memories": list(memories), **extra})
+
+
+def _mem(mid, content, score, **extra):
+    return {"id": mid, "content": content, "importance": 0.7, "rank_score": score, **extra}
+
+
 def test_search_returns_memories(storage):
     s, mock_client = storage
-    mem = MagicMock(content="Client prefers weekly status reports", id="m-1", score=0.9,
-                    metadata=None)
-    mock_recall = MagicMock()
-    mock_recall.memories = [mem]
-    mock_client.recall.return_value = mock_recall
+    mock_client.recall.return_value = _recall(
+        _mem("m-1", "Client prefers weekly status reports", 0.9)
+    )
     results = s.search("What does the client want?")
-    assert len(results) == 1
-    assert results[0]["content"] == "Client prefers weekly status reports"
+    assert results == [
+        {
+            "content": "Client prefers weekly status reports",
+            "id": "m-1",
+            "score": 0.9,
+            "importance": 0.7,
+            "metadata": None,
+        }
+    ]
     mock_client.recall.assert_called_once_with(
-        "crew-1", query="What does the client want?", top_k=3)
+        "crew-1", query="What does the client want?", top_k=3, neighborhood_mode="separate")
 
 
 def test_search_wraps_non_dict_results(storage):
     s, mock_client = storage
     mem = MagicMock(content="plain string memory", id="m-2", score=0.8, metadata=None)
     mock_recall = MagicMock()
-    mock_recall.memories = [mem]
+    mock_recall.ranked = [mem]
     mock_client.recall.return_value = mock_recall
     results = s.search("test")
     assert results[0]["content"] == "plain string memory"
+
+
+def test_search_leaves_out_inline_neighborhood_context(storage):
+    # A server that appends neighbourhood context inline (v0.12.3 default)
+    # must not push the result past the limit.
+    s, mock_client = storage
+    mock_client.recall.return_value = _recall(
+        _mem("m-1", "a", 0.9),
+        _mem("m-2", "b", 0.8),
+        _mem("n-1", "context", 0.99, retrieval="neighborhood"),
+        _mem("m-3", "c", 0.7),
+        _mem("m-4", "d", 0.6),
+    )
+    results = s.search("q")
+    assert [r["id"] for r in results] == ["m-1", "m-2", "m-3"]
+
+
+def test_search_scores_by_rank_score(storage):
+    s, mock_client = storage
+    mock_client.recall.return_value = _recall(
+        {"id": "m-1", "content": "a", "rank_score": 0.42, "smart_score": 0.9, "score": 0.1}
+    )
+    assert s.search("q")[0]["score"] == 0.42
+
+
+def test_batch_search_caps_each_result_at_limit(storage):
+    s, mock_client = storage
+    mock_client.recall.return_value = _recall(
+        _mem("m-1", "a", 0.9), _mem("n-1", "ctx", 0.5, retrieval="neighborhood"),
+        _mem("m-2", "b", 0.8),
+    )
+    results = s.batch_search(["x", "y"], limit=1)
+    assert results == [[{"content": "a", "id": "m-1", "score": 0.9}]] * 2
+    mock_client.recall.assert_called_with("crew-1", query="y", top_k=1,
+                                          neighborhood_mode="separate")
+
+
+def test_save_forwards_event_time(storage):
+    s, mock_client = storage
+    s.save("Met Anna in Berlin", event_time="2024-03-01T10:00:00Z")
+    mock_client.store_memory.assert_called_once_with(
+        "crew-1", content="Met Anna in Berlin", memory_type="episodic", importance=0.7,
+        event_time="2024-03-01T10:00:00Z")
+
+
+def test_consolidate_without_ids(storage):
+    s, mock_client = storage
+    s.consolidate()
+    mock_client.consolidate.assert_called_once_with("crew-1")
+
+
+def test_consolidate_with_ids(storage):
+    s, mock_client = storage
+    s.consolidate(["m-1", "m-2"])
+    mock_client.consolidate.assert_called_once_with("crew-1", memory_ids=["m-1", "m-2"])
 
 
 def test_reset_is_noop(storage):
