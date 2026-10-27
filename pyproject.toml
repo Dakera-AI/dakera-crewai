@@ -31,7 +31,9 @@ dev = ["pytest>=7.0.0", "pytest-asyncio>=0.21.0", "ruff>=0.1.0", "mypy>=1.0.0", 
 
 [project.urls]
 Homepage = "https://github.com/dakera-ai/dakera-crewai"
-Documentation = "https://docs.dakera.ai/integrations/crewai"
+Documentation = "https://dakera.ai/integrations/crewai.html"
+Changelog = "https://github.com/Dakera-AI/dakera-crewai/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Dakera-AI/dakera-crewai/issues"
 Repository = "https://github.com/dakera-ai/dakera-crewai"
 
 [tool.setuptools.packages.find]
