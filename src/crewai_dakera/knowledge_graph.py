@@ -8,7 +8,16 @@ from dakera import DakeraClient
 
 
 class DakeraKnowledgeGraph:
-    """Knowledge graph for entity relationships in CrewAI workflows."""
+    """The knowledge graph of one Dakera agent's memories.
+
+    Memories are the nodes; the server links related memories automatically and
+    :meth:`link` adds explicit links.
+
+    Args:
+        api_url: Dakera server URL.
+        agent_id: The agent whose memories form the graph.
+        api_key: Dakera API key.
+    """
 
     def __init__(self, api_url: str, agent_id: str, api_key: str = "") -> None:
         self._client = DakeraClient(api_url, api_key=api_key)
@@ -21,7 +30,11 @@ class DakeraKnowledgeGraph:
         max_depth: int = 3,
         limit: int = 100,
     ) -> dict[str, Any]:
-        """Query the knowledge graph."""
+        """Query the graph, optionally from ``root_id`` and along one ``edge_type``.
+
+        Returns ``edges`` (``source``, ``target``, ``type``), ``node_count`` and
+        ``edge_count``.
+        """
         result = self._client.knowledge_query(
             self._agent_id, root_id=root_id, edge_type=edge_type, max_depth=max_depth, limit=limit
         )
@@ -35,13 +48,11 @@ class DakeraKnowledgeGraph:
         }
 
     def find_path(self, from_id: str, to_id: str) -> dict[str, Any]:
-        """Find shortest path between two memory nodes."""
+        """Find the shortest path between two memories: ``path`` (memory ids) and ``hop_count``."""
         result = self._client.knowledge_path(self._agent_id, from_id=from_id, to_id=to_id)
         return {"path": result.path, "hop_count": result.hop_count}
 
-    def link(
-        self, source_id: str, target_id: str, *, label: str | None = None
-    ) -> dict[str, Any]:
+    def link(self, source_id: str, target_id: str, *, label: str | None = None) -> dict[str, Any]:
         """Link two of this agent's memories (``POST /v1/memories/{id}/links``).
 
         The server records every explicit link as ``linked_by``; ``label`` is
@@ -57,7 +68,7 @@ class DakeraKnowledgeGraph:
         }
 
     def export(self) -> dict[str, Any]:
-        """Export the full knowledge graph."""
+        """Export the agent's whole graph, in the shape of :meth:`query`."""
         result = self._client.knowledge_export(self._agent_id)
         return {
             "edges": [
@@ -75,9 +86,7 @@ class DakeraKnowledgeGraph:
         """
         return self._client.knowledge_graph(self._agent_id, memory_id=memory_id, depth=depth)
 
-    def summarize(
-        self, memory_ids: list[str], *, target_type: str | None = None
-    ) -> dict[str, Any]:
+    def summarize(self, memory_ids: list[str], *, target_type: str | None = None) -> dict[str, Any]:
         """Summarize the given memories into one new summary memory.
 
         ``POST /v1/knowledge/summarize`` needs at least two ``memory_ids`` and
@@ -90,6 +99,14 @@ class DakeraKnowledgeGraph:
             self._agent_id, memory_ids=memory_ids, target_type=target_type
         )
 
-    def deduplicate(self) -> dict[str, Any]:
-        """Deduplicate entities in the graph."""
-        return self._client.deduplicate(self._agent_id)
+    def deduplicate(
+        self, *, threshold: float | None = None, dry_run: bool = False
+    ) -> dict[str, Any]:
+        """Merge the agent's near-duplicate memories (``POST /v1/knowledge/deduplicate``).
+
+        ``threshold`` is the similarity above which two memories count as duplicates
+        (server default when ``None``); ``dry_run=True`` only reports them. From server
+        v0.12.3 merged-away memories can be restored for a while (the SDK's
+        ``list_deduplicated()`` / ``restore_deduplicated()``).
+        """
+        return self._client.deduplicate(self._agent_id, threshold=threshold, dry_run=dry_run)

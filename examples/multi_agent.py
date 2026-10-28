@@ -1,10 +1,11 @@
 """Multi-agent shared memory with CrewAI and Dakera.
 
-Demonstrates how multiple CrewAI agents can share context through
-Dakera's memory platform using separate agent IDs and cross-agent recall.
+Each Dakera agent id is its own memory: here a researcher and a writer keep
+separate memories on the same server. Give two crews the same agent id to let
+them share one memory.
 
 Usage:
-    export DAKERA_API_URL="http://localhost:3300"
+    export DAKERA_API_URL="http://localhost:3000"
     export DAKERA_API_KEY="dk-..."          # optional
     pip install crewai-dakera
     python multi_agent.py
@@ -14,7 +15,7 @@ import os
 
 from crewai_dakera import DakeraStorage
 
-api_url = os.environ.get("DAKERA_API_URL", "http://localhost:3300")
+api_url = os.environ.get("DAKERA_API_URL", "http://localhost:3000")
 api_key = os.environ.get("DAKERA_API_KEY", "")
 
 researcher = DakeraStorage(
@@ -32,12 +33,16 @@ writer = DakeraStorage(
 )
 
 print("Researcher stores findings...")
-researcher.save("Python is the most popular language for AI/ML development.")
-researcher.save("TypeScript adoption in AI tooling grew 60% in 2025.")
+research_ids = [
+    researcher.save("Python is the most popular language for AI/ML development.")["id"],
+    researcher.save("TypeScript adoption in AI tooling grew 60% in 2025.")["id"],
+]
 
 print("Writer stores drafts...")
-writer.save("Blog outline: 'Top Languages for AI Development in 2026'")
-writer.save("Key angle: polyglot approach — Python for ML, TypeScript for tooling.")
+draft_ids = [
+    writer.save("Blog outline: 'Top Languages for AI Development in 2026'")["id"],
+    writer.save("Key angle: polyglot approach — Python for ML, TypeScript for tooling.")["id"],
+]
 
 print("\nResearcher recalls their findings about 'AI languages':")
 for r in researcher.search("AI languages"):
@@ -46,3 +51,7 @@ for r in researcher.search("AI languages"):
 print("\nWriter recalls their drafts about 'blog content':")
 for r in writer.search("blog content"):
     print(f"  [{r['score']:.3f}] {r['content']}")
+
+# Forget what this demo stored, so a rerun starts from scratch.
+researcher.batch_forget(research_ids)
+writer.batch_forget(draft_ids)

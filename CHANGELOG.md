@@ -1,5 +1,102 @@
 # Changelog
 
+## [0.4.0] - 2026-10-27
+
+Dakera server **v0.12.3** support and a `DakeraStorage` that really plugs into a crew.
+Requires the `dakera` Python SDK **>= 0.14.1**; tested against Dakera server v0.12.3 and still
+works with v0.12.0 – v0.12.2 (the new arguments below need the server version named next to
+them). The `crewai` extra targets CrewAI 0.193 – 1.9 (tested with 0.193.0, 1.6.1 and 1.9.3).
+
+### Changed
+- Requires `dakera>=0.14.1` (was `>=0.13.1`).
+- **`DakeraStorage.reset()` deletes every memory of the agent** on the server (it was a no-op).
+  CrewAI calls it from `crew.reset_memories(...)` / `crewai reset-memories`, which now really
+  resets a crew's Dakera memory; it cannot be undone.
+- The `crewai` extra requires `crewai>=0.193.0,<1.10` (was `>=0.30.0`): CrewAI 1.10 replaced
+  `ExternalMemory` / `ShortTermMemory` / `EntityMemory` with a unified `Memory` whose storage
+  backends receive client-side embeddings, which `DakeraStorage` does not implement. The
+  package without the extra works with any CrewAI version.
+- `DakeraStorage.search()` and `DakeraStorage.batch_search()` return at most `limit` ranked
+  memories. A v0.12.3 server appends neighbourhood context to a recall by default, which
+  could push the result past `limit` and mix in items whose scores are not comparable with
+  the ranked ones; the context is now requested separately (`neighborhood_mode="separate"`)
+  and left out.
+- Result `score` is the server's `rank_score` (v0.12.3), the field recall ranks by; older
+  servers keep the previous score.
+- `DakeraStorage.search()` results carry the memory's `importance` and `metadata`.
+- `DakeraNamespaceManager.create(metadata=...)` is deprecated and not sent
+  (`DeprecationWarning`).
+
+### Added
+- **CrewAI storage interface** on `DakeraStorage`: `save(value, metadata)` takes any value (a
+  non-string is stored as its `str()`), `search(query, limit, score_threshold)` takes CrewAI's
+  arguments (`score_threshold` is a cut-off for CrewAI's own cosine similarity and is not
+  applied), and `asave()` / `asearch()` serve CrewAI's async paths. `DakeraStorage` backs
+  `ExternalMemory(storage=...)`, `ShortTermMemory(storage=...)` and `EntityMemory(storage=...)`.
+- `DakeraStorage.save(..., event_time=)`: when the memory's event happened (Unix seconds, an
+  RFC 3339 string or a timezone-aware `datetime`) for history written after the fact. Server
+  v0.12.3 reads it for recency and `since` / `until`; `created_at` stays the ingest time.
+- `DakeraStorage.consolidate(memory_ids=None)`: merge exactly the given memories (at least two).
+- `DakeraSessionManager.start(metadata=None, *, idle_timeout_secs=None)` and
+  `DakeraSessionManager.touch()`: from v0.12.2 the server ends a session after 4 h without
+  activity by default; set the session's own timeout (`0` = never) or keep it open.
+  `DakeraSessionManager.get()` returns `ended_reason` (`"client"`, `"idle"`, ...) and
+  `last_activity_at`; `DakeraSessionManager.list()` returns `ended_reason`.
+- `DakeraSessionManager.memories(session_id, *, include_derived=False)`.
+- `DakeraKnowledgeGraph.deduplicate(*, threshold=None, dry_run=False)`.
+- `examples/crew_memory.py`: a crew with `ExternalMemory(storage=DakeraStorage(...))` that
+  recalls its first run in the second; it uses OpenAI when `OPENAI_API_KEY` is set and a
+  scripted stand-in LLM otherwise.
+- `LICENSE` (MIT, as declared in `pyproject.toml`).
+
+### Fixed
+- `DakeraStorage.search()`, `batch_search()` and `hybrid_search()` on a server before v0.12.3:
+  the first recall of a new agent (a crew's first run) raised `NotFoundError`
+  (`404 NAMESPACE_NOT_FOUND`). Such a server answers a recall or search of an agent that has
+  stored nothing with a 404 for some queries (e.g. "What do I build?"); it is now treated as
+  no memories, like a v0.12.3 server. Other 404s are still raised.
+- The README's headline example passed `DakeraStorage` to `LongTermMemory(storage=...)`, whose
+  storage interface (`save(task_description, ...)`, `load(...)`) `DakeraStorage` does not
+  implement, so the crew failed when it saved or recalled long-term memory. The README now
+  uses `ExternalMemory`, documents which CrewAI memories take the storage, and every README
+  snippet is run against a live server.
+- A crew's `ExternalMemory` passes the agent's whole conversation as `metadata["messages"]`;
+  stored as metadata it could exceed the server's metadata limit and fail the save. It is
+  left out (the value already holds the agent's answer).
+- `DakeraNamespaceManager.create(..., metadata=...)` looked like it stored namespace metadata,
+  but the server's create route has no such field and dropped it; `metadata` is deprecated
+  (`DeprecationWarning`) and no longer sent.
+- `DakeraSessionManager.memories()` returned the sentence sub-memories the server derives from
+  a session's memories (tagged `dakera-curated`) alongside them; they are left out unless
+  `include_derived=True`.
+- README: the `docker run` quick start published port 3300 while the server listens on 3000;
+  the Docker Compose URL pointed at a file that does not exist and set `DAKERA_API_KEY`
+  instead of the required `DAKERA_ROOT_API_KEY`; the configuration table named a `top_k`
+  constructor argument (it is `search_k`).
+- `DakeraKnowledgeGraph.deduplicate()` was documented as deduplicating graph entities; it
+  merges the agent's near-duplicate memories.
+- The `advanced_memory.py` example printed `importance`, which `search()` did not return; it
+  now queries something the stored memories answer and shows `event_time`.
+
+### Docs / examples
+- README rewritten around `ExternalMemory(storage=DakeraStorage(...))`, with sections for the
+  storage interface, the direct API, sessions, the knowledge graph, entities and namespaces,
+  and an examples table. CONTRIBUTING describes the current commands and how to run the live
+  tests (`DAKERA_API_URL`). Public classes and methods document their arguments and results.
+- Examples default to `http://localhost:3000` (the server's default port), forget what they
+  store so reruns start clean, and cover tag filters, consolidation, links and paths,
+  `touch()` and the session context manager.
+
+### Tests / CI
+- `tests/test_integration.py`: live tests of every class against a real server, including a
+  crew whose second run recalls the first through `ExternalMemory`; skipped unless
+  `DAKERA_API_URL` is set (the CI integration job sets it).
+- Integration tests and examples run against `ghcr.io/dakera-ai/dakera:0.12.3` with the
+  `crewai` extra installed. That image ships no `curl`, so the service container has no
+  in-container health check; the job polls `/health` from the runner instead.
+- CI checks formatting (`ruff format --check`, the whole tree is formatted), and a failing
+  example now fails the examples job.
+
 ## [0.3.0] - 2026-10-01
 
 Dakera server **v0.12.0** support. Requires the `dakera` Python SDK **>= 0.13.1**; compatible

@@ -1,7 +1,10 @@
 """Batch operations with CrewAI and Dakera.
 
+Stores several memories, searches for several queries at once and forgets them
+in one call.
+
 Usage:
-    export DAKERA_API_URL="http://localhost:3300"
+    export DAKERA_API_URL="http://localhost:3000"
     python batch_operations.py
 """
 
@@ -9,7 +12,7 @@ import os
 
 from crewai_dakera import DakeraStorage
 
-api_url = os.environ.get("DAKERA_API_URL", "http://localhost:3300")
+api_url = os.environ.get("DAKERA_API_URL", "http://localhost:3000")
 api_key = os.environ.get("DAKERA_API_KEY", "")
 
 memory = DakeraStorage(
@@ -26,18 +29,17 @@ items = [
     "Loyalty program: 1 point per dollar.",
     "Gift cards: $25, $50, $100 denominations.",
 ]
-for item in items:
-    memory.save(item, importance=0.7)
-print(f"Stored {len(items)} memories.")
+ids = [memory.save(item, importance=0.7)["id"] for item in items]
+print(f"Stored {len(ids)} memories.")
 
 print("\n--- Batch recall ---")
 queries = ["shipping", "payment", "returns"]
-try:
-    results = memory.batch_search(queries, limit=2)
-    for query, matches in zip(queries, results):
-        print(f"\n  Query: '{query}'")
-        for m in matches:
-            score = m.get("score", m.get("importance", 0.0))
-            print(f"    [{score:.1f}] {m.get('content', '')[:50]}")
-except Exception as e:
-    print(f"  Batch search not supported: {e}")
+results = memory.batch_search(queries, limit=2)
+for query, matches in zip(queries, results):
+    print(f"\n  Query: '{query}'")
+    for m in matches:
+        print(f"    [{m['score']:.3f}] {m['content'][:50]}")
+
+print("\n--- Batch forget ---")
+memory.batch_forget(ids)
+print(f"Forgot {len(ids)} memories.")
